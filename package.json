@@ -4,7 +4,11 @@
   "description": "Projeto de testes de API do Mark85",
   "main": "index.js",
   "scripts": {
-    "test": "npx cypress run"
+    "test": "npx cypress run",
+    "allure:clean": "rm -rf allure-results/* allure-report/* || true",
+    "allure:generate": "npx allure generate ./allure-results -o ./allure-report --clean",
+    "allure:report": "npx allure open ./allure-report",
+    "ci": "npm run test && npm run allure:generate"
   },
   "keywords": [
     "cypress",

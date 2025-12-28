@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:6.0
+        ports: ['27017:27017']
+        options: >-
+          --health-cmd="mongosh --eval 'db.adminCommand({ping:1})'" 
+          --health-interval=10s --health-timeout=5s --health-retries=5
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports: ['5672:5672', '15672:15672']
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+      AMQP_HOST: ${{ secrets.AMQP_HOST }}
+      AMQP_QUEUE: ${{ secrets.AMQP_QUEUE }}
+      AMQP_TOKEN: ${{ secrets.AMQP_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env from secrets
+        run: |
+          echo "BASE_URL=${BASE_URL:-http://localhost:3333}" > .env
+          echo "MONGO_URI=${MONGO_URI:-mongodb://localhost:27017/markdb}" >> .env
+          echo "AMQP_HOST=${AMQP_HOST:-http://localhost:15672/api/queues/%2F}" >> .env
+          echo "AMQP_QUEUE=${AMQP_QUEUE:-tasks}" >> .env
+          echo "AMQP_TOKEN=${AMQP_TOKEN:-Basic Z3Vlc3Q6Z3Vlc3Q=}" >> .env
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+
+      - name: Generate Allure report
+        if: ${{ always() }}
+        run: npm run allure:generate || true
+
+      - name: Upload Allure report artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
